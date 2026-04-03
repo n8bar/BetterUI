@@ -38,6 +38,38 @@ Output DLL:
 bin\Release\net48\BetterUI.dll
 ```
 
+## Versioning
+
+Sync source and package versions:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Bump-Version.ps1 -Version 2.5.10
+```
+
+Patch bump:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Bump-Version.ps1 -Patch
+```
+
+Publish the local Thunderstore package from the current manifest version:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Publish-LocalThunderstorePackage.ps1
+```
+
+That publish step now:
+
+- builds `BetterUI.csproj` in `Release`
+- copies the rebuilt DLL into the Thunderstore cache and live profile plugin folder
+- updates the local package version metadata in Thunderstore `mods.yml`
+
+Or bump and publish in one step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Publish-LocalThunderstorePackage.ps1 -BumpPatch
+```
+
 ## Notes
 
 - `publicized\*.dll` is generated locally and not committed.

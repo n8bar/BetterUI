@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace BetterUI;
 
-[BepInPlugin("MK_BetterUI", "BetterUI", "2.5.9")]
+[BepInPlugin("MK_BetterUI", "BetterUI", "2.5.10")]
 public class Main : BaseUnityPlugin
 {
 	public enum CustomBarState
@@ -460,3 +460,4 @@ public class Main : BaseUnityPlugin
 		}
 	}
 }
+

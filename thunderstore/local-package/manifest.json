@@ -1,9 +1,10 @@
 {
   "name": "BetterUI_LocalFork",
   "description": "Local source-built BetterUI fork with repeated enemy stars and corrected enemy level display.",
-  "version_number": "2.5.10",
+  $12.5.10",
   "website_url": "https://github.com/n8bar/BetterUI/tree/fm-2.5.9",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2202"
   ]
 }
+
