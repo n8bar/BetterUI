@@ -1,461 +1,407 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using HudData = EnemyHud.HudData;
+using MessageType = MessageHud.MessageType;
+using Object = UnityEngine.Object;
 
-namespace BetterUI.Patches
+namespace BetterUI.Patches;
+
+internal static class CustomHud
 {
-  static class CustomHud
-  {
-    public static List<HudElement> elements;
-    public static Dictionary<Groups, Transform> roots = new Dictionary<Groups, Transform>();
-    public static Dictionary<Groups, Transform> templates = new Dictionary<Groups, Transform>();
-    private static Transform hudRoot;
-    private static Transform invRoot;
-    private static Transform baseRoot;
-    public static readonly string templateSuffix = "_template";
+	public static List<HudElement> elements;
 
-    // In the future give users ability to add new elements?
-    private static readonly Element[] supportedElements =
-    {
-      new Element("HotKeyBar", Groups.HudRoot),
-      new Element("BuildHud", Groups.HudRoot, "BuildHud/SelectedInfo"),
-      new Element("MiniMap", Groups.HudRoot, "MiniMap/small"),
-      new Element("GuardianPower", Groups.HudRoot),
-      new Element("StatusEffects", Groups.HudRoot),
-      new Element("SaveIcon", Groups.HudRoot),
-      new Element("BadConnectionIcon", Groups.HudRoot),
-      new Element("BuildHints", Groups.HudRoot, "KeyHints/BuildHints"),
-      new Element("CombatHints", Groups.HudRoot, "KeyHints/CombatHints"),
-      new Element("Player", Groups.Inventory, "Player", "PlayerInventory"),
-      new Element("Container", Groups.Inventory, "Container", "ChestContainer"),
-      new Element("Info", Groups.Inventory, "Info", "UITab"),
-      new Element("Crafting", Groups.Inventory, "Crafting", "CraftingWindow"),
-      new Element(CustomElements.HealthBar.objectName, Groups.HudRoot, CustomElements.HealthBar.objectName, "HP Bar"),
-      new Element(CustomElements.FoodBar.objectName, Groups.HudRoot, CustomElements.FoodBar.objectName, "Food Bar"),
-      new Element(CustomElements.StaminaBar.objectName, Groups.HudRoot, CustomElements.StaminaBar.objectName, "Stamina Bar"),
-      new Element("QuickSlots", Groups.HudRoot, "QuickSlotsHotkeyBar", "QuickSlots")
-      //new Element("QuickSlotsHotkeyBar", Groups.HudRoot, "healthpanel/Health/QuickSlotsHotkeyBar", "QuickSlotsHotkey"),
-      //new Element("QuickSlotGrid", Groups.Inventory, "Player/QuickSlotGrid", "QuickSlots"),
-      //new Element("EquipmentSlotGrid", Groups.Inventory, "Player/EquipmentSlotGrid", "EquipmentSlots"),
-    };
+	public static Dictionary<Groups, Transform> roots = new Dictionary<Groups, Transform>();
 
-    // If new items are added to mandatory items, check if user has them - if not add them.
-    public static void Load(Hud hud)
-    {
-      try
-      {
-        hudRoot = hud.transform.Find("hudroot");
-        invRoot = InventoryGui.instance.transform.Find("root"); // Issue, this element is hidden when inventory is closed
-        baseRoot = MessageHud.instance.transform; // This layer will be projected over other UI elements
+	public static Dictionary<Groups, Transform> templates = new Dictionary<Groups, Transform>();
 
-        roots[Groups.HudRoot] = hudRoot;
-        roots[Groups.Inventory] = invRoot;
+	private static Transform hudRoot;
 
+	private static Transform invRoot;
 
-        if (Main.uiData.Value == "none" || Main.uiData.Value == "")
-        {
-          Helpers.DebugLine($"User has no uiData. Creating basic template.");
-          elements = new List<HudElement>();
-        }
-        else
-        {
-          try
-          {
-            byte[] bytes = Convert.FromBase64String(Main.uiData.Value);
-            elements = (List<HudElement>)bytes.DeSerialize(); // Risky, as we trust the data is valid?
-            Helpers.DebugLine($"User has {elements.Count} ui elements set.");
-          }
-          catch
-          {
-            Helpers.DebugLine($"FAILED to DeSerialize uiData: {Main.uiData.Value}");
-          }
-        }
+	private static Transform baseRoot;
 
-        if (elements.Count < supportedElements.Length)
-        {
-          foreach (Element e in supportedElements)
-          {
-            // Element does not exist in users uiData, add it.
-            if (!elements.Exists(he => he.name == e.name))
-            {
-              Helpers.DebugLine($"Adding to elements: {e.name}");
-              elements.Add(new HudElement(e.name, Vector2.zero, 1f, 1f, e.displayName, e.group, e.locationPath));
+	public static readonly string templateSuffix = "_template";
 
-              if (elements.Count == supportedElements.Length) break;
-            }
-          }
-        }
-        else if (elements.Count > supportedElements.Length)
-        {
-          // We have more elements than supported? Are there duplicates, how?
-          Helpers.DebugLine($"Seems that your UI might be corrupted!", true, true);
-        }
+	private static readonly Element[] supportedElements = new Element[19]
+	{
+		new Element("HotKeyBar", Groups.HudRoot),
+		new Element("BuildHud", Groups.HudRoot, "BuildHud/SelectedInfo"),
+		new Element("MiniMap", Groups.HudRoot, "MiniMap/small"),
+		new Element("GuardianPower", Groups.HudRoot),
+		new Element("StatusEffects", Groups.HudRoot),
+		new Element("SaveIcon", Groups.HudRoot),
+		new Element("BadConnectionIcon", Groups.HudRoot),
+		new Element("BuildHints", Groups.HudRoot, "KeyHints/BuildHints"),
+		new Element("CombatHints", Groups.HudRoot, "KeyHints/CombatHints"),
+		new Element("Player", Groups.Inventory, "Player", "PlayerInventory"),
+		new Element("Container", Groups.Inventory, "Container", "ChestContainer"),
+		new Element("Info", Groups.Inventory, "Info", "UITab"),
+		new Element("Crafting", Groups.Inventory, "Crafting", "CraftingWindow"),
+		new Element("BetterUI_HPBar", Groups.HudRoot, "BetterUI_HPBar", "HP Bar"),
+		new Element("BetterUI_FoodBar", Groups.HudRoot, "BetterUI_FoodBar", "Food Bar"),
+		new Element("BetterUI_StaminaBar", Groups.HudRoot, "BetterUI_StaminaBar", "Stamina Bar"),
+		new Element("BetterUI_EitrBar", Groups.HudRoot, "BetterUI_EitrBar", "Eitr Bar"),
+		new Element("QuickSlots", Groups.HudRoot, "QuickSlotsHotkeyBar", "QuickSlots"),
+		new Element("BossHud", Groups.HudRoot, "EnemyHud/HudRoot/HudBaseBoss", "Boss Health Bar")
+	};
 
-        CreateTemplates();
-      }
-      catch (Exception e)
-      {
-        Helpers.DebugLine($"Issue while CustomHud Load. {e.Message}", true, true);
-      }
-    }
+	public static void Load(Hud hud)
+	{
+		//IL_01e3: Unknown result type (might be due to invalid IL or missing references)
+		try
+		{
+			hudRoot = ((Component)hud).transform.Find("hudroot");
+			invRoot = ((Component)InventoryGui.instance).transform.Find("root");
+			baseRoot = ((Component)MessageHud.instance).transform;
+			roots[Groups.HudRoot] = hudRoot;
+			roots[Groups.Inventory] = invRoot;
+			if (Main.uiData.Value == "none" || Main.uiData.Value == "")
+			{
+				Helpers.DebugLine("User has no uiData. Creating basic template.");
+				elements = new List<HudElement>();
+			}
+			else
+			{
+				try
+				{
+					elements = (List<HudElement>)Convert.FromBase64String(Main.uiData.Value).DeSerialize();
+					Helpers.DebugLine($"User has {elements.Count} ui elements set.");
+				}
+				catch
+				{
+					Helpers.DebugLine("FAILED to DeSerialize uiData: " + Main.uiData.Value);
+				}
+				foreach (HudElement element in elements)
+				{
+					element.OnAfterDeserialize();
+				}
+			}
+			if (elements.Count < supportedElements.Length)
+			{
+				Element[] array = supportedElements;
+				for (int i = 0; i < array.Length; i++)
+				{
+					Element e = array[i];
+					if (!elements.Exists((HudElement he) => he.Name == e.Name))
+					{
+						Helpers.DebugLine("Adding to elements: " + e.Name + " with path: " + e.LocationPath);
+						elements.Add(new HudElement(e.Name, e.DisplayName, e.Group, e.LocationPath, Vector2.zero));
+						if (elements.Count == supportedElements.Length)
+						{
+							break;
+						}
+					}
+				}
+			}
+			else if (elements.Count > supportedElements.Length)
+			{
+				Helpers.DebugLine("Seems that your UI might be corrupted!", pref: true, warn: true);
+			}
+			CreateTemplates();
+		}
+		catch (Exception ex)
+		{
+			Helpers.DebugLine("Issue while CustomHud Load. " + ex.Message, pref: true, warn: true);
+		}
+	}
 
-    public static void Save()
-    {
-      try
-      {
-        // Before saving, check if unset elements -> no need to save them.
-        elements.RemoveAll(e => e.GetPosition() == Vector2.zero);
-        byte[] bytes = elements.Serialize();
-        Helpers.DebugLine($"uiData bytes: {bytes.Length}");
-        string base64String = Convert.ToBase64String(bytes);
-        Main.uiData.Value = base64String;
-      }
-      catch (Exception e)
-      {
-        Helpers.DebugLine($"FAILED to Save: {e.Message}");
-      }
-    }
+	public static void Save()
+	{
+		try
+		{
+			elements.RemoveAll((HudElement e) => e.Position == Vector2.zero);
+			byte[] array = elements.Serialize();
+			Helpers.DebugLine($"uiData bytes: {array.Length}");
+			string value = Convert.ToBase64String(array);
+			Main.uiData.Value = value;
+		}
+		catch (Exception ex)
+		{
+			Helpers.DebugLine("FAILED to Save: " + ex.Message);
+		}
+	}
 
-    public static void ShowTemplates(bool show, int activeLayer)
-    {
-      // Try to find reason on using this?
-      roots.TryGetValue((Groups)activeLayer, out Transform activeTemplate);
+	public static void ShowTemplates(bool show, int activeLayer)
+	{
+		foreach (HudElement element in elements)
+		{
+			if (activeLayer == (int)element.Group)
+			{
+				RectTransform val = LocateTemplateRect(element.Name);
+				if ((Object)(object)val != (Object)null)
+				{
+					((Component)val).gameObject.SetActive(show);
+				}
+			}
+			else
+			{
+				RectTransform val2 = LocateTemplateRect(element.Name);
+				if ((Object)(object)val2 != (Object)null)
+				{
+					((Component)val2).gameObject.SetActive(false);
+				}
+			}
+		}
+		if (!show)
+		{
+			Save();
+		}
+	}
 
-      foreach (HudElement e in elements)
-      {
-        if ((Groups)activeLayer == e.group)
-        {
-          RectTransform rt = LocateTemplateRect(e.group, e.name);
-          if (rt)
-          {
-            rt.gameObject.SetActive(show);
-          }
-        }
-        else
-        {
-          RectTransform rt = LocateTemplateRect(e.group, e.name);
-          if (rt)
-          {
-            rt.gameObject.SetActive(false);
-          }
-        }
-      }
+	public static void UpdatePosition(string name, Vector2 posChange)
+	{
+		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_003f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0057: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0058: Unknown result type (might be due to invalid IL or missing references)
+		//IL_005d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0067: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_006f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0081: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0082: Unknown result type (might be due to invalid IL or missing references)
+		HudElement hudElement = elements.Find((HudElement e) => e.Name == name);
+		if (hudElement.Name == name)
+		{
+			hudElement.Position += posChange;
+			if (hudElement.Group == Groups.Inventory)
+			{
+				Vector3 val3 = Camera.main.ScreenToViewportPoint(new Vector3(posChange.x, posChange.y, 0f));
+				Vector2 val = new Vector2(val3.x, val3.y);
+				hudElement.AnchorMin += val;
+				hudElement.AnchorMax += val;
+			}
+			PositionTemplate(hudElement);
+		}
+	}
 
+	public static void UpdateScaleAndDimensions(string name, Vector2 dimensionChanges, float scaleChange)
+	{
+		//IL_0071: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0072: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_008b: Unknown result type (might be due to invalid IL or missing references)
+		HudElement hudElement = elements.Find((HudElement e) => e.Name == name);
+		if (hudElement.Name == name)
+		{
+			if (scaleChange != 0f)
+			{
+				hudElement.ChangeScale(scaleChange);
+				((Character)Player.m_localPlayer).Message((MessageType)2, $"{hudElement.DisplayName} size: {hudElement.Scale}", 0, (Sprite)null);
+			}
+			if (dimensionChanges != Vector2.zero)
+			{
+				hudElement.ChangeXDims(dimensionChanges.x);
+				hudElement.ChangeYDims(dimensionChanges.y);
+				((Character)Player.m_localPlayer).Message((MessageType)2, $"{hudElement.DisplayName} dimensions: ({hudElement.XDimensions},{hudElement.YDimensions})", 0, (Sprite)null);
+				PositionTemplate(hudElement);
+			}
+		}
+		else
+		{
+			Helpers.DebugLine("Invalid call when updating element: " + name, pref: true, warn: true);
+		}
+	}
 
-      if (!show) Save();
-    }
+	private static void PositionTemplate(HudElement e)
+	{
+		//IL_0040: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0065: Unknown result type (might be due to invalid IL or missing references)
+		//IL_016a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0176: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0124: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0129: Unknown result type (might be due to invalid IL or missing references)
+		//IL_012e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0135: Unknown result type (might be due to invalid IL or missing references)
+		//IL_013d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0149: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0155: Unknown result type (might be due to invalid IL or missing references)
+		//IL_015c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_019b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01a7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c5: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00eb: Unknown result type (might be due to invalid IL or missing references)
+		try
+		{
+			RectTransform val = LocateRectTransform(e.Group, e.Path);
+			RectTransform val2 = LocateTemplateRect(e.Name);
+			if ((Object)(object)val == (Object)null)
+			{
+				return;
+			}
+			if (e.Name == "BossHud")
+			{
+				val.anchoredPosition = e.Position;
+				((Transform)val).localScale = new Vector3(e.Scale * e.XDimensions, e.Scale * e.YDimensions);
+				EnemyHud instance = EnemyHud.m_instance;
+				if ((Object)(object)instance != (Object)null)
+				{
+					foreach (KeyValuePair<Character, HudData> hud in instance.m_huds)
+					{
+						if (hud.Key.IsBoss())
+						{
+							RectTransform component = hud.Value.m_gui.GetComponent<RectTransform>();
+							if ((Object)(object)component != (Object)null)
+							{
+								component.anchoredPosition = e.Position;
+								((Transform)component).localScale = new Vector3(e.Scale * e.XDimensions, e.Scale * e.YDimensions);
+							}
+						}
+					}
+				}
+			}
+			if (e.Group == Groups.Inventory)
+			{
+				float largeGuiScale = GuiScaler.m_largeGuiScale;
+				Camera.main.ViewportToScreenPoint(new Vector3(e.AnchorMax.x, e.AnchorMax.y, 0f));
+				_ = e.Position;
+				val.anchorMin = e.AnchorMin;
+				val.anchorMax = e.AnchorMax;
+				val2.anchoredPosition = e.Position / largeGuiScale;
+			}
+			else
+			{
+				val.anchoredPosition = e.Position;
+				val2.anchoredPosition = e.Position;
+			}
+			((Transform)val).localScale = new Vector3(e.Scale * e.XDimensions, e.Scale * e.YDimensions);
+			((Transform)val2).localScale = ((Transform)val).localScale;
+		}
+		catch
+		{
+			Helpers.DebugLine("PositionTemplate Catch: " + e.Name);
+		}
+	}
 
-    public static void UpdatePosition(string name, Vector3 pos, float size)
-    {
-      HudElement element = elements.Find(e => e.name == name);
-      if (element.name == name)
-      {
-        element.x += pos.x;
-        element.y += pos.y;
-        if (size != 0f)
-        {
-          element.SetScale(size);
-          Player.m_localPlayer.Message(MessageHud.MessageType.Center, $"{element.displayName} size: {element.scale}");
-        }
-        if (element.group == Groups.Inventory)
-        {
-          Vector3 newPos = Camera.main.ScreenToViewportPoint(new Vector3(pos.x, pos.y, pos.z));
-          //element.SetAnchors(newPos, newPos);
-          //element.anchorMin += new Vector2(newPos.x, newPos.y);
-          element.UpdateAnchors(newPos, newPos);
-          //element.anchorMax += new Vector2(newPos.x, newPos.y);
-        }
-        // Update element & template position
-        PositionTemplate(element);
-      }
-    }
+	public static RectTransform LocateRectTransform(Groups group, string path)
+	{
+		try
+		{
+			roots.TryGetValue(group, out Transform value);
+			if (group == Groups.Inventory)
+			{
+				value = ((Component)InventoryGui.instance).transform.Find("root");
+			}
+			if (path.StartsWith("EnemyHud/"))
+			{
+				Transform val = hudRoot.parent.parent.Find(path);
+				if ((Object)(object)val != (Object)null)
+				{
+					return ((Component)val).GetComponent<RectTransform>();
+				}
+			}
+			return ((Component)value.Find(path)).GetComponent<RectTransform>();
+		}
+		catch
+		{
+			return null;
+		}
+	}
 
-    // This creates issues with Text. Scaling is off!
-    public static void UpdateDimensions(string name, float size)
-    {
-      HudElement element = elements.Find(e => e.name == name);
-      if (element.name == name)
-      {
-        if (size != 0f)
-        {
-          element.SetDims(size);
-          Player.m_localPlayer.Message(MessageHud.MessageType.Center, $"{element.displayName} dimensions: (1,{element.dimensions})");
-          // Update element & template position
-          PositionTemplate(element);
-        }
-      }
-      else
-      {
-        Helpers.DebugLine($"Invalid call when updating element: {name}", true, true);
-      }
-    }
+	public static RectTransform LocateTemplateRect(string name)
+	{
+		try
+		{
+			return ((Component)baseRoot.Find(name + templateSuffix)).GetComponent<RectTransform>();
+		}
+		catch
+		{
+			Helpers.DebugLine("Unable to find template for " + name, pref: true, warn: true);
+			return null;
+		}
+	}
 
-    private static void PositionTemplate(HudElement e)
-    {
-      try
-      {
-        RectTransform rt = LocateRectTransform(e.group, e.path);  // Original object
-        RectTransform tt = LocateTemplateRect(e.group, e.name);   // Your generated template
-        //Helpers.DebugLine($"{rt} {rt.anchorMin} {e.GetPosition()}");
-        if (rt)
-        {
-          if (e.group == Groups.Inventory)
-          {
-            float gameScale = GameObject.Find("GUI").GetComponent<CanvasScaler>().scaleFactor;
-            //Helpers.DebugLine($"\n{e.GetPosition()}\n{gameScale}\n{Camera.main.ViewportToScreenPoint(e.GetAnchorMin())}\n{tt.position}");
-            //Helpers.DebugLine($"\n{e.GetPosition() / gameScale}");
-            // Original object are moved by anchors
-            Vector3 cPos = Camera.main.ViewportToScreenPoint(e.GetAnchorMax());
-            Vector2 ePos = e.GetPosition();
+	public static void PositionTemplates()
+	{
+		foreach (HudElement element in elements)
+		{
+			PositionTemplate(element);
+		}
+	}
 
-            rt.anchorMin = e.GetAnchorMin();
-            rt.anchorMax = e.GetAnchorMax();
-            tt.anchoredPosition = e.GetPosition() / gameScale;
-          }
-          else
-          {
-            rt.anchoredPosition = e.GetPosition();
-            tt.anchoredPosition = e.GetPosition(); //rt.anchoredPosition;
-          }
-          rt.localScale = new Vector3(e.GetScale(), e.GetScale() * e.GetDims());
-          tt.localScale = rt.localScale;
-        }
-      }
-      catch
-      {
-        Helpers.DebugLine($"PositionTemplate Catch: {e.name}");
-      }
-    }
+	private static void CreateTemplates()
+	{
+		//IL_002e: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0033: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0070: Unknown result type (might be due to invalid IL or missing references)
+		//IL_004a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0056: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
+		List<HudElement> list = new List<HudElement>();
+		foreach (HudElement element in elements)
+		{
+			try
+			{
+				RectTransform val = LocateRectTransform(element.Group, element.Path);
+				if (element.Position == Vector2.zero)
+				{
+					if (element.Group == Groups.Inventory)
+					{
+						element.Position = val.anchoredPosition;
+						element.AnchorMin = val.anchorMin;
+						element.AnchorMax = val.anchorMax;
+					}
+					else
+					{
+						element.Position = val.anchoredPosition;
+					}
+				}
+				AddTemplateToHud(element, val);
+			}
+			catch
+			{
+				list.Add(element);
+			}
+		}
+		if (list.Count <= 0)
+		{
+			return;
+		}
+		Helpers.DebugLine($"Removing {list.Count} unused elements.");
+		foreach (HudElement item in list)
+		{
+			Helpers.DebugLine("Remove " + item.DisplayName + " as not used.");
+			elements.Remove(item);
+		}
+	}
 
-    public static RectTransform LocateRectTransform(Groups group, string path)
-    {
-      try
-      {
-        roots.TryGetValue(group, out Transform parent);
-        // We change parent to Inventory root
-        if (group == Groups.Inventory) parent = InventoryGui.instance.transform.Find("root");
-
-        return parent.Find(path).GetComponent<RectTransform>();
-      }
-      catch
-      {
-        return null;
-      }
-    }
-
-    public static RectTransform LocateTemplateRect(Groups group, string name)
-    {
-      try
-      {
-        return baseRoot.Find($"{name}{templateSuffix}").GetComponent<RectTransform>();
-      }
-      catch
-      {
-        Helpers.DebugLine($"Unable to find template for {name}", true, true);
-        return null;
-      }
-    }
-
-    public static void PositionTemplates()
-    {
-      foreach (HudElement e in elements) PositionTemplate(e);
-    }
-
-    private static void CreateTemplates()
-    {
-      List<HudElement> unusedElements = new List<HudElement>();
-      foreach (HudElement e in elements)
-      {
-        try
-        {
-          RectTransform rt = LocateRectTransform(e.group, e.path);
-          if (e.GetPosition() == Vector2.zero)
-          {
-            if (e.group == Groups.Inventory)
-            {
-              e.SetPosition(rt.anchoredPosition);
-              // This elements depend on anchors, set these
-              e.SetAnchors(rt.anchorMin, rt.anchorMax);
-              //e.SetPosition(rt.anchorMax);
-            }
-            else
-            {
-              e.SetPosition(rt.anchoredPosition);
-            }
-          }
-          AddTemplateToHud(e, rt);
-        }
-        catch
-        {
-          unusedElements.Add(e);
-        }
-      }
-      // Remove unused elements from main ElementList
-      if (unusedElements.Count > 0)
-      {
-        Helpers.DebugLine($"Removing {unusedElements.Count} unused elements.");
-        foreach (HudElement e in unusedElements)
-        {
-          Helpers.DebugLine($"Remove {e.displayName} as not used.");
-          elements.Remove(e);
-        }
-      }
-    }
-
-    private static void AddTemplateToHud(HudElement element, RectTransform rt)
-    {
-      // Should we add these to their own elements? Based on their group?
-      // roots.TryGetValue(Groups.HudRoot, out Transform templateRoot); // Everything on hudRoot
-      // roots.TryGetValue(element.group, out Transform templateRoot);
-
-
-      Transform go = UnityEngine.Object.Instantiate(hudRoot.Find("BuildHud/SelectedInfo"), baseRoot);
-      go.gameObject.name = $"{element.name}{templateSuffix}";
-      go.Find("selected_piece").gameObject.SetActive(false);
-      go.Find("requirements").gameObject.SetActive(false);
-
-      Text t = go.gameObject.AddComponent<Text>();
-      t.text = $"{element.displayName}";
-      t.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-      t.fontSize = 20;
-      t.alignment = TextAnchor.MiddleCenter;
-      go.gameObject.SetActive(false); // Have it hidden when added
-
-      RectTransform templateRT = go.GetComponent<RectTransform>();
-      templateRT.pivot = rt.pivot;
-      templateRT.anchorMin = rt.anchorMin;
-      templateRT.anchorMax = rt.anchorMax;
-      templateRT.offsetMin = rt.offsetMin;
-      templateRT.offsetMax = rt.offsetMax;
-      templateRT.sizeDelta = rt.sizeDelta;
-      templateRT.anchoredPosition = rt.anchoredPosition;
-      templateRT.position = rt.position;
-      templateRT.localEulerAngles = rt.localEulerAngles;
-      t.resizeTextForBestFit = true;
-    }
-  }
-
-  [Serializable]
-  public class HudElement
-  {
-    public string name;
-    public string displayName;
-    public float x;
-    public float y;
-    public float scale;
-    public float dimensions;
-
-    public string path;
-    /// <summary>
-    /// Layer Group where the element belongs
-    /// </summary>
-    public Groups group;
-    // AnchorMin
-    private float anchorMinX;
-    private float anchorMinY;
-    // AnchorMax
-    private float anchorMaxX;
-    private float anchorMaxY;
-
-
-    public HudElement(string name, Vector2 position, float scale, float dimensions, string displayName, Groups group, string path)
-    {
-      this.name = name;
-      this.displayName = displayName;
-      this.x = position.x;
-      this.y = position.y;
-      this.scale = scale;
-      this.dimensions = dimensions;
-      this.path = path;
-      this.group = group;
-    }
-
-    public string GetName() => name;
-    public string SetName(string name) => this.name = name;
-    public Vector2 GetPosition() => new Vector2(x, y);
-    public void SetPosition(Vector2 pos)
-    {
-      x = pos.x;
-      y = pos.y;
-    }
-    public float GetScale() => scale;
-    public void SetScale(float change)
-    {
-      scale = (float)Math.Round(Mathf.Abs(scale + change), 1);
-    }
-    public float GetDims() => dimensions;
-    public void SetDims(float change)
-    {
-      dimensions = (float)Math.Round(Mathf.Abs(dimensions + change), 2);
-    }
-
-    public void SetAnchors(Vector2 min, Vector2 max)
-    {
-      this.anchorMinX = min.x;
-      this.anchorMinY = min.y;
-      this.anchorMaxX = max.x;
-      this.anchorMaxY = max.y;
-    }
-    public void UpdateAnchors(Vector2 min, Vector2 max)
-    {
-      this.anchorMinX += min.x;
-      this.anchorMinY += min.y;
-      this.anchorMaxX += max.x;
-      this.anchorMaxY += max.y;
-    }
-    public Vector2 GetAnchorMin() => new Vector2(anchorMinX, anchorMinY);
-    public Vector2 GetAnchorMax() => new Vector2(anchorMaxX, anchorMaxY);
-  }
-
-  public struct Element
-  {
-    /// <summary>
-    /// Used as an unique value, unique name to the element.
-    /// If no path is given, this needs to be elements path as well.
-    /// </summary>
-    public string name; // We see this as unique. Might cause issues later on?
-    /// <summary>
-    /// Use custom name on the template when user edits HUD
-    /// </summary>
-    public string displayName;
-    /// <summary>
-    /// On what layer group should the element be editable. This is as well the parent element where path is related.
-    /// </summary>
-    public Groups group;
-    /// <summary>
-    /// Path of the element. Relative to parent.
-    /// </summary>
-    public string locationPath;
-
-    public Element(string name, Groups group, string locationPath = "", string displayName = "")
-    {
-      this.name = name;
-      this.group = group;
-      this.locationPath = locationPath == "" ? name : locationPath;
-      this.displayName = displayName == "" ? name : displayName;
-    }
-  };
-
-  public enum Groups
-  {
-    HudRoot,
-    Inventory,
-    Other // Is this enough, or should we just specify everything.
-  }
-
-  public enum ParentRoot
-  {
-    Hud,
-    Inventory,
-    HudMessage,
-    TopLeftMessage,
-    Chat,
-    EnemyHud,
-    Store,
-    Menu
-  }
+	private static void AddTemplateToHud(HudElement element, RectTransform rt)
+	{
+		//IL_00bf: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00cb: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00d7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00e3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ef: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00fb: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0107: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0113: Unknown result type (might be due to invalid IL or missing references)
+		//IL_011e: Unknown result type (might be due to invalid IL or missing references)
+		Transform obj = Object.Instantiate<Transform>(hudRoot.Find("BuildHud/SelectedInfo"), baseRoot);
+		((Object)((Component)obj).gameObject).name = element.Name + templateSuffix;
+		((Component)obj.Find("selected_piece")).gameObject.SetActive(false);
+		((Component)obj.Find("requirements")).gameObject.SetActive(false);
+		TextMeshProUGUI val = ((Component)obj).gameObject.AddComponent<TextMeshProUGUI>();
+		((TMP_Text)val).text = element.DisplayName ?? "";
+		((TMP_Text)val).font = Hud.instance.m_pieceDescription.font;
+		((TMP_Text)val).fontSize = 20f;
+		((TMP_Text)val).alignment = (TextAlignmentOptions)544;
+		((Component)obj).gameObject.SetActive(false);
+		RectTransform component = ((Component)obj).GetComponent<RectTransform>();
+		component.pivot = rt.pivot;
+		component.anchorMin = rt.anchorMin;
+		component.anchorMax = rt.anchorMax;
+		component.offsetMin = rt.offsetMin;
+		component.offsetMax = rt.offsetMax;
+		component.sizeDelta = rt.sizeDelta;
+		component.anchoredPosition = rt.anchoredPosition;
+		((Transform)component).position = ((Transform)rt).position;
+		((Transform)component).localEulerAngles = ((Transform)rt).localEulerAngles;
+		((TMP_Text)val).enableAutoSizing = true;
+	}
 }

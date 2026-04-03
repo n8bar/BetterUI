@@ -1,42 +1,45 @@
-[<p align="center"><img width="600" src="/logo.png"></p>](/logo.png) 
+# BetterUI 2.5.9 Source Fork
 
-![Version](https://img.shields.io/endpoint?color=success&label=Version&style=flat-square&url=https%3A%2F%2Fvalheim-modtracker.vercel.app%2Fnexusmods%2F189%2Fversion)
-[![](https://img.shields.io/endpoint?label=TS%20Downloads&style=flat-square&url=https%3A%2F%2Fvalheim-modtracker.vercel.app%2Fthunderstore%2FMasa%2FBetterUI%2Fdownloads)](https://valheim.thunderstore.io/package/Masa/BetterUI/)
-[![](https://img.shields.io/endpoint?label=TS%20%F0%9F%91%8D&style=flat-square&url=https%3A%2F%2Fvalheim-modtracker.vercel.app%2Fthunderstore%2FMasa%2FBetterUI%2Fratings)](https://valheim.thunderstore.io/package/Masa/BetterUI/)
-[![](https://img.shields.io/endpoint?label=Nexus%20endorsed&style=flat-square&url=https%3A%2F%2Fvalheim-modtracker.vercel.app%2Fnexusmods%2F189%2Fendorsed)](https://www.nexusmods.com/valheim/mods/189)
-[![](https://img.shields.io/endpoint?label=Nexus%20views&style=flat-square&url=https%3A%2F%2Fvalheim-modtracker.vercel.app%2Fnexusmods%2F189%2Fviews)](https://www.nexusmods.com/valheim/mods/189)
-# BetterUI 
-The main idea behind *BetterUI* is to make the interface of [Valheim](https://www.valheimgame.com/) more pleasant and easier to understand.  
-I'll add slowly new additions to the mod - and fix bugs that users report.
+This branch rebuilds `BetterUI_ForeverMaintained` `2.5.9` from decompiled source and keeps the local enemy HUD changes that were previously done as binary patches:
 
-[![](https://i.nyah.moe/Rb5tv.png)](https://zap-hosting.com/BetterUI)
+- enemy level display uses `m_level - 1`
+- non-zero enemy levels render as repeated `★` instead of `Lv.#`
 
-## Where to download 
-[Thunderstore](https://valheim.thunderstore.io/package/Masa/BetterUI/)  _*suggesting to use their mod manager for an quick & easy install_ ([r2modman](https://valheim.thunderstore.io/package/ebkr/r2modman/))
+## Status
 
-[NexusMods](https://www.nexusmods.com/valheim/mods/189)
+- source base: decompiled `BetterUI_ForeverMaintained` `2.5.9`
+- branch: `fm-2.5.9`
+- current build: `dotnet build BetterUI.csproj -c Release`
 
-## Project Structure
-[/](/BetterUI/) - Project root  
-[/GameClasses](/BetterUI/GameClasses) - HarmonyPatches under the original game classes.  
-[/Patches](/BetterUI/Patches) - Supporting functions for specific patches.  
-[/Package](/BetterUI/Package) - Package for Thunderstore upload.  
+## Requirements
 
-## Developing environment
-#### BepInEx
- - Download and install [BepInEx](https://valheim.thunderstore.io/package/denikson/BepInExPack_Valheim/) *(this is an Valheim specific pack)*
- - Follow the information under manual install
-#### BepInEx Publicizer
- - To get access on games private functions, you need the publicized assembly files.
- - Install an assembly publicizer for BepInEx from:  https://github.com/MrPurple6411/Bepinex-Tools/releases/tag/1.0.0-Publicizer
- - The `Bepinex-Publicizer` folder from the `.zip` should be placed under `<ValheimGameDirectory>\BepInEx\plugins`
- - Run the game once, BepInEx console should pop-up. At the background, BepInEx Publicizer will create assemblies  
- under `<ValheimGameDirectory>\valheim_Data\Managed\publicized_assemblies`
- 
- You should now successfully build this project 🎉
- 
- ## Additional info
- To view the actual game code, download [dnSpy](https://github.com/dnSpy/dnSpy/releases/tag/v6.1.8) and open `assembly_valheim.dll` with it.  
- The file is located under `<ValheimGameDirectory>\valheim_Data\Managed\`
- 
- This mod is created using [HarmonyX](https://github.com/BepInEx/HarmonyX), info about their syntax is found [here](https://harmony.pardeike.net/articles/patching.html).
+- .NET SDK `8.0.x`
+- Valheim install
+- Thunderstore/BepInEx profile with the standard Valheim `BepInEx` core DLLs
+
+## Build
+
+1. Adjust `GameDir.targets` if your Valheim install or profile paths differ from the defaults.
+2. Generate the publicized game assemblies:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Generate-PublicizedAssemblies.ps1
+```
+
+3. Build:
+
+```powershell
+dotnet build .\BetterUI.csproj -c Release
+```
+
+Output DLL:
+
+```text
+bin\Release\net48\BetterUI.dll
+```
+
+## Notes
+
+- `publicized\*.dll` is generated locally and not committed.
+- This repo is not a clean upstream source drop. It is a repaired decompile of the maintained Thunderstore build.
+- The old public `2.0.2` repo was used as a cleanup guide where the decompiler output was ambiguous.

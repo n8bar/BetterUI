@@ -1,343 +1,462 @@
-﻿using BepInEx;
-using BepInEx.Logging;
-using BepInEx.Configuration;
-using HarmonyLib;
-using System.IO;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using BepInEx;
+using BepInEx.Configuration;
+using BepInEx.Logging;
+using BetterUI.GameClasses;
+using BetterUI.Patches;
+using HarmonyLib;
 using UnityEngine;
 
-namespace BetterUI
+namespace BetterUI;
+
+[BepInPlugin("MK_BetterUI", "BetterUI", "2.5.9")]
+public class Main : BaseUnityPlugin
 {
-  [BepInPlugin(GUID, MODNAME, VERSION)]
-  public class Main : BaseUnityPlugin
-  {
-    #region[Declarations]
+	public enum CustomBarState
+	{
+		off = -1,
+		on0Degrees = 0,
+		on90Degrees = 90,
+		on180Degrees = 180,
+		on270Degrees = 270
+	}
 
-    public const string
-      MODNAME = "BetterUI",
-      AUTHOR = "MK",
-      GUID = AUTHOR + "_" + MODNAME,
-      VERSION = "2.0.2";
+	public enum DurabilityBarStyle
+	{
+		Disabled = -1,
+		GreenYellowOrangeRed,
+		WhiteLightYellowLightCyanBlue
+	}
 
-    internal readonly ManualLogSource log;
-    internal readonly Harmony harmony;
-    internal readonly Assembly assembly;
-    public readonly string modFolder;
+	public enum TimeLeftStyle
+	{
+		Disabled,
+		PercentageDone,
+		MinutesSecondsLeft
+	}
 
-    public static readonly bool isDebug = true;
+	public enum ChestHasRoomStyle
+	{
+		Disabled,
+		Percentage,
+		ItemsSlashMaxRoom,
+		AmountOfFreeSlots
+	}
 
-    // Custom Elements
-    public static ConfigEntry<bool> useCustomHealthBar;
-    public static ConfigEntry<bool> useCustomStaminaBar;
-    public static ConfigEntry<bool> useCustomFoodBar;
+	public enum EnemyLevelStyle
+	{
+		DefaultStars,
+		PrefixLevelNumber,
+		Both
+	}
 
-    // HoverTexts
-    public static ConfigEntry<int> timeLeftStyleFermenter;
-    public static ConfigEntry<int> timeLeftStylePlant;
-    public static ConfigEntry<int> timeLeftStyleCookingStation;
-    public static ConfigEntry<int> chestHasRoomStyle;
+	public const string MODNAME = "BetterUI";
 
-    // Settings
-    public static ConfigEntry<bool> useCustomHud;
-    public static ConfigEntry<KeyCode> toggleEditMode;
-    public static ConfigEntry<KeyCode> modKeyPrimary;
-    public static ConfigEntry<KeyCode> modKeySecondary;
-    public static ConfigEntry<int> colorMode;
-    public static ConfigEntry<bool> showDurabilityColor;
-    public static ConfigEntry<bool> showCharacterXP;
-    public static ConfigEntry<bool> showItemStars;
-    public static ConfigEntry<bool> customEnemyHud;
-    public static ConfigEntry<bool> hideEnemyHPText;
-    public static ConfigEntry<bool> showXPNotifications;
-    public static ConfigEntry<bool> customSkillUI;
-    public static ConfigEntry<bool> showCustomCharInfo;
-    public static ConfigEntry<bool> showCustomTooltips;
-    public static ConfigEntry<bool> showCombinedItemStats;
+	public const string AUTHOR = "MK";
 
-    // UI Edits
-    public static ConfigEntry<float> iconScaleSize;
-    public static ConfigEntry<float> mapPinScaleSize;
-    public static ConfigEntry<int> notificationTextSize;
-    public static ConfigEntry<bool> extendedXPNotification;
-    public static ConfigEntry<int> enemyLvlStyle;
-    public static ConfigEntry<int> enemyHudTextSize;
-    public static ConfigEntry<float> maxShowDistance;
-    public static ConfigEntry<int> skillUITextSize;
-    public static ConfigEntry<int> healthBarRotation;
-    public static ConfigEntry<int> staminaBarRotation;
-    public static ConfigEntry<int> foodBarRotation;
+	public const string GUID = "MK_BetterUI";
 
-    // xUIData
-    public static ConfigEntry<string> uiData;
-    #endregion
+	public const string VERSION = "2.5.9";
 
+	internal static ManualLogSource log;
 
-    public Main()
-    {
-      log = Logger;
-      harmony = new Harmony(GUID);
-      assembly = Assembly.GetExecutingAssembly();
-      //modFolder = Path.GetDirectoryName(assembly.Location);
-    }
-    public void Awake()
-    {
-      /* =======================
-       *        Settings
-       * =======================
-       */
-      useCustomHud = Config.Bind("Settings",
-        nameof(useCustomHud),
-        true,
-        "Toggle whether to use custom huds or not."
-      );
+	internal readonly Harmony harmony;
 
-      toggleEditMode = Config.Bind("Settings",
-        nameof(toggleEditMode),
-        KeyCode.F7,
-        "Toggle hud editing mode."
-      );
+	internal readonly Assembly assembly;
 
-      modKeyPrimary = Config.Bind("Settings",
-        nameof(modKeyPrimary),
-        KeyCode.Mouse0,
-        "Button needed to hold down to change HUD position. Check values: https://docs.unity3d.com/ScriptReference/KeyCode.html"
-      );
+	public static ConfigEntry<bool> enablePlayerHudEditing;
 
-      modKeySecondary = Config.Bind("Settings",
-        nameof(modKeySecondary),
-        KeyCode.LeftControl,
-        "Button needed to hold down to change element dimensions. Accepted Values: https://docs.unity3d.com/ScriptReference/KeyCode.html"
-      );
+	public static ConfigEntry<KeyCode> togglePlayerHudEditModeKey;
 
-      colorMode = Config.Bind("Settings", 
-        nameof(colorMode), 
-        0, 
-        "Change colorMode. Options: 0=Normal, 1=Protanopia"
-      );
+	public static ConfigEntry<KeyCode> modKeyPrimary;
 
-      showDurabilityColor = Config.Bind("Settings", 
-        nameof(showDurabilityColor), 
-        true, 
-        "Show colored durability bars"
-      );
+	public static ConfigEntry<KeyCode> modKeySecondary;
 
-      showCharacterXP = Config.Bind("Settings", 
-        nameof(showCharacterXP), 
-        true, 
-        "Show Character XP Bar."
-      );
+	public static ConfigEntry<CustomBarState> customHealthBar;
 
-      showItemStars = Config.Bind("Settings",
-        nameof(showItemStars), 
-        true, 
-        "Show item quality as stars"
-      );
+	public static ConfigEntry<CustomBarState> customStaminaBar;
 
-      customEnemyHud = Config.Bind("Settings",
-        nameof(customEnemyHud), 
-        true, 
-        "Toggle the use of custom enemy hud"
-      );
+	public static ConfigEntry<CustomBarState> customEitrBar;
 
-      hideEnemyHPText = Config.Bind("Settings",
-        nameof(hideEnemyHPText), 
-        false, 
-        "Toggle if you want to hide the text with HP amount"
-      );
+	public static ConfigEntry<CustomBarState> customFoodBar;
 
-      showXPNotifications = Config.Bind("Settings",
-        nameof(showXPNotifications), 
-        true, 
-        "Show when you gain xp from actions."
-      );
+	public static ConfigEntry<int> customBarTextSize;
 
-      customSkillUI = Config.Bind("Settings",
-        nameof(customSkillUI), 
-        true, 
-        "Toggle the use of custom skills UI"
-      );
+	public static ConfigEntry<int> customFoodBarTextSize;
 
-      showCustomCharInfo = Config.Bind("Settings",
-        nameof(showCustomCharInfo), 
-        true, 
-        "Toggle the visibility of custom info on character selection"
-      );
+	public static ConfigEntry<DurabilityBarStyle> durabilityBarColorPalette;
 
-      showCustomTooltips = Config.Bind("Settings",
-        nameof(showCustomTooltips), 
-        true, 
-        "Show customized tooltips."
-      );
+	public static ConfigEntry<bool> showItemStars;
 
-      showCombinedItemStats = Config.Bind("Settings",
-        nameof(showCombinedItemStats), 
-        true, 
-        "Show all item stats when mouse is hovered over armour amount."
-      );
+	public static ConfigEntry<bool> showCustomCharInfo;
 
-      /* =======================
-       *        UI Edits
-       * =======================
-       */
-      iconScaleSize = Config.Bind("UI Edits",
-        nameof(iconScaleSize), 
-        0.75f, 
-        "Scale item icon by this factor. Ex. 0.75 makes them 75% of original size"
-      );
+	public static ConfigEntry<bool> showCustomTooltips;
 
-      mapPinScaleSize = Config.Bind("UI Edits",
-        nameof(mapPinScaleSize), 
-        1f, 
-        "Scale map pins by this factor. Ex. 1.5 makes the 150% of original size."
-      );
+	public static ConfigEntry<bool> showCombinedItemStats;
 
-      notificationTextSize = Config.Bind("UI Edits",
-        nameof(notificationTextSize), 
-        14, 
-        "Edit XP notification font size."
-      );
+	public static ConfigEntry<float> iconScaleSize;
 
-      extendedXPNotification = Config.Bind("UI Edits",
-        nameof(extendedXPNotification), 
-        true, 
-        "Extend notification with: (xp gained) [current/overall xp]"
-      );
+	public static ConfigEntry<bool> customSkillUI;
 
-      enemyLvlStyle = Config.Bind("UI Edits",
-        nameof(enemyLvlStyle), 
-        1, 
-        "Choose how enemy lvl is shown. 0 = Default(stars) | 1 = Prefix before name (Lv. 1) | 2 = Both"
-      );
+	public static ConfigEntry<int> skillUITextSize;
 
-      enemyHudTextSize = Config.Bind("UI Edits",
-        nameof(enemyHudTextSize), 
-        14, 
-        "Select Text size on enemyHud"
-      );
+	public static ConfigEntry<TimeLeftStyle> timeLeftHoverTextFermenter;
 
-      maxShowDistance = Config.Bind("UI Edits",
-        nameof(maxShowDistance), 
-        1f, 
-        "How far you will see enemy HP Bar. This is an multiplier, 1 = game default. 2 = 2x default"
-      );
+	public static ConfigEntry<TimeLeftStyle> timeLeftHoverTextPlant;
 
-      skillUITextSize = Config.Bind("UI Edits",
-        nameof(skillUITextSize), 
-        14, 
-        "Select text size on skills UI"
-      );
+	public static ConfigEntry<TimeLeftStyle> timeLeftHoverTextCookingStation;
 
-      healthBarRotation = Config.Bind("UI Edits",
-        nameof(healthBarRotation),
-        0,
-        "Rotate healthbar in degrees"
-      );
+	public static ConfigEntry<TimeLeftStyle> timeLeftHoverTextBeeHive;
 
-      staminaBarRotation = Config.Bind("UI Edits",
-        nameof(staminaBarRotation),
-        90,
-        "Rotate staminabar in degrees"
-      );
+	public static ConfigEntry<ChestHasRoomStyle> chestHasRoomHoverText;
 
-      foodBarRotation = Config.Bind("UI Edits",
-        nameof(foodBarRotation),
-        0,
-        "Rotate foodbar in degrees"
-      );
+	public static ConfigEntry<bool> showCharacterXP;
 
-      /* =======================
-       *     Hover Texts
-       * =======================
-       */
-      timeLeftStyleFermenter = Config.Bind("Hover Text",
-        nameof(timeLeftStyleFermenter), 
-        2, 
-        "Select duration display. 0 = Default, 1 = % Done, 2 = min:sec left"
-      );
+	public static ConfigEntry<bool> showCharacterXpBar;
 
-      timeLeftStylePlant = Config.Bind("Hover Text",
-        nameof(timeLeftStylePlant), 
-        2, 
-        "Select duration display. 0 = Default, 1 = % Done, 2 = min:sec left"
-      );
+	public static ConfigEntry<bool> showXPNotifications;
 
-      timeLeftStyleCookingStation = Config.Bind("Hover Text",
-        nameof(timeLeftStyleCookingStation), 
-        2, 
-        "Select duration display. 0 = Default, 1= % Done, 2 = min:sec left"
-      );
+	public static ConfigEntry<bool> extendedXPNotification;
 
-      chestHasRoomStyle = Config.Bind("Hover Text",
-        nameof(chestHasRoomStyle), 
-        2, 
-        "Select how chest emptyness is displayed. 0 = Default | 1 = % | 2 = items / max_room. | 3 = free slots "
-      );
+	public static ConfigEntry<bool> skipRunningSkillNotifications;
 
+	public static ConfigEntry<int> notificationTextSizeXP;
 
-      /* =======================
-       *     Custom Elements
-       * =======================
-       */
-      useCustomHealthBar = Config.Bind("CustomElements",
-        nameof(useCustomHealthBar),
-        true,
-        "Select if you want to use an custom HP Bar."
-      );
-      useCustomStaminaBar = Config.Bind("CustomElements",
-        nameof(useCustomStaminaBar),
-        true,
-        "Select if you want to use an custom Stamina Bar."
-      );
-      useCustomFoodBar = Config.Bind("CustomElements",
-        nameof(useCustomFoodBar),
-        true,
-        "Select if you want to use an custom Food Bar."
-      );
+	public static ConfigEntry<bool> customEnemyHud;
 
-      /* =======================
-       *         xDataUI
-       * =======================
-       */
-      uiData = Config.Bind("xDataUI",
-        nameof(uiData),
-        "none",
-        "This is your customized UI info. (Edit to none, if having issues with UI)"
-      );
-      /*
-      showXPNotifications = Config.Bind("UI", "ShowXPNotifications", true, "Show when you gain xp from actions.");
-      extendedXPNotification = Config.Bind("UI", "extendedXPNotification", true, "Extend notification with: (xp gained) [current/overall xp]");
-      notificationTextSize = Config.Bind("UI", "notificationTextSize", 14, "Edit XP notification font size.");
-      customSkillUI = Config.Bind("UI", "useCustomSkillUI", true, "Toggle the use of custom skills UI");
-      skillUITextSize = Config.Bind("UI", "skillUITextSize", 14, "Select text size on skills UI");
-      showCustomCharInfo = Config.Bind("UI", "showCustomCharInfo", true, "Toggle the visibility of custom info on character selection");
-      showCombinedItemStats = Config.Bind("UI", "showCombinedItemStats", true, "Show all item stats when mouse is hovered over armour amount.");
-      timeLeftStyleFermenter = Config.Bind("UI", "timeLeftStyleFermenter", 2, "Select duration display. 0 = Default, 1 = % Done, 2 = min:sec left");
-      timeLeftStylePlant = Config.Bind("UI", "timeLeftStylePlant", 2, "Select duration display. 0 = Default, 1 = % Done, 2 = min:sec left");
-      timeLeftStyleCookingStation = Config.Bind("UI", "timeLeftStyleCookingStation", 2, "Select duration display. 0 = Default, 1= % Done, 2 = min:sec left");
-      chestHasRoomStyle = Config.Bind("UI", "chestHasRoomStyle", 2, "Select how chest emptyness is displayed. 0 = Default | 1 = % | 2 = items / max_room. | 3 = free slots ");
+	public static ConfigEntry<bool> showEnemyHPText;
 
-      showDurabilityColor = Config.Bind("Item", "ShowDurabilityColor", true, "Show colored durability bars");
-      showItemStars = Config.Bind("Item", "showItemStars", true, "Show item quality as stars");
-      showCustomTooltips = Config.Bind("Item", "showCustomTooltips", true, "Show customized tooltips.");
-      iconScaleSize = Config.Bind("Item", "ScaleSize", 0.75f, "Scale item icon by this factor. Ex. 0.75 makes them 75% of original size");
+	public static ConfigEntry<EnemyLevelStyle> enemyLevelStyle;
 
-      customEnemyHud = Config.Bind("HUD", "useCustomEnemyHud", true, "Toggle the use of custom enemy hud");
-      hideEnemyHPText = Config.Bind("HUD", "hideEnemyHPText", false, "Toggle if you want to hide the text with HP amount");
-      enemyLvlStyle = Config.Bind("HUD", "enemyLvlStyle", 1, "Choose how enemy lvl is shown. 0 = Default(stars) | 1 = Prefix before name (Lv. 1) | 2 = Both");
-      enemyHudTextSize = Config.Bind("HUD", "enemyHudTextSize", 14, "Select Text size on enemyHud");
-      maxShowDistance = Config.Bind("HUD", "MaxShowDistance", 1f, "How far you will see enemy HP Bar. This is an multiplier, 1 = game default. 2 = 2x default");
-      mapPinScaleSize = Config.Bind("HUD", "mapPinSize", 1f, "Scale map pins by this factor. Ex. 1.5 makes the 150% of original size.");
-      */
-    }
-    public void Start()
-    {
-      harmony.PatchAll(assembly);
-    }
-    /*
-    public void OnDestroy()
-    {
-      harmony?.UnpatchAll();
-    }
-    */
-  }
+	public static ConfigEntry<int> enemyNameTextSize;
+
+	public static ConfigEntry<int> enemyHPTextSize;
+
+	public static ConfigEntry<int> playerHPTextSize;
+
+	public static ConfigEntry<bool> showPlayerHPText;
+
+	public static ConfigEntry<bool> showLocalPlayerEnemyHud;
+
+	public static ConfigEntry<int> bossHPTextSize;
+
+	public static ConfigEntry<bool> makeTamedHPGreen;
+
+	public static ConfigEntry<float> maxShowDistance;
+
+	public static ConfigEntry<bool> useCustomAlertedStatus;
+
+	public static ConfigEntry<float> mapPinScaleSize;
+
+	public static ConfigEntry<string> uiData;
+
+	public static ConfigEntry<bool> isDebug;
+
+	public Main()
+	{
+		//IL_0017: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0021: Expected O, but got Unknown
+		log = Logger;
+		harmony = new Harmony("MK_BetterUI");
+		assembly = Assembly.GetExecutingAssembly();
+	}
+
+	public void Awake()
+	{
+		//IL_00b1: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00bc: Expected O, but got Unknown
+		//IL_00e4: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ef: Expected O, but got Unknown
+		//IL_00fc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0107: Expected O, but got Unknown
+		//IL_014c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0156: Expected O, but got Unknown
+		//IL_015d: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0167: Expected O, but got Unknown
+		//IL_0172: Unknown result type (might be due to invalid IL or missing references)
+		//IL_017d: Expected O, but got Unknown
+		//IL_0186: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0191: Expected O, but got Unknown
+		//IL_01d6: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01e0: Expected O, but got Unknown
+		//IL_01e7: Unknown result type (might be due to invalid IL or missing references)
+		//IL_01f1: Expected O, but got Unknown
+		//IL_01fc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0207: Expected O, but got Unknown
+		//IL_0212: Unknown result type (might be due to invalid IL or missing references)
+		//IL_021d: Expected O, but got Unknown
+		//IL_0289: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0293: Expected O, but got Unknown
+		//IL_029a: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02a4: Expected O, but got Unknown
+		//IL_02af: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02ba: Expected O, but got Unknown
+		//IL_02fc: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0306: Expected O, but got Unknown
+		//IL_0313: Unknown result type (might be due to invalid IL or missing references)
+		//IL_031e: Expected O, but got Unknown
+		//IL_0327: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0332: Expected O, but got Unknown
+		//IL_0435: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0440: Expected O, but got Unknown
+		//IL_046c: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0477: Expected O, but got Unknown
+		//IL_04a3: Unknown result type (might be due to invalid IL or missing references)
+		//IL_04ae: Expected O, but got Unknown
+		//IL_04f6: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0501: Expected O, but got Unknown
+		//IL_05ca: Unknown result type (might be due to invalid IL or missing references)
+		//IL_05d5: Expected O, but got Unknown
+		//IL_0655: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0660: Expected O, but got Unknown
+		string text = "1 - Player HUD";
+		togglePlayerHudEditModeKey = ((BaseUnityPlugin)this).Config.Bind<KeyCode>(text, "togglePlayerHudEditModeKey", (KeyCode)288, "Key used to toggle Player HUD editing mode. Accepted values: https://docs.unity3d.com/ScriptReference/KeyCode.html");
+		modKeyPrimary = ((BaseUnityPlugin)this).Config.Bind<KeyCode>(text, "modKeyPrimary", (KeyCode)323, "Key needed to be held down to change an elements position by moving the mouse, as well as its rotation with the mouse wheel if supported. Accepted values: https://docs.unity3d.com/ScriptReference/KeyCode.html");
+		modKeySecondary = ((BaseUnityPlugin)this).Config.Bind<KeyCode>(text, "modKeySecondary", (KeyCode)306, "Key needed to be held down to change an elements scale with the mouse wheel, as well as its X and Y dimensions by moving the mouse. Accepted Values: https://docs.unity3d.com/ScriptReference/KeyCode.html");
+		customBarTextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "customBarTextSize", 15, "Font size of the text on the custom bars.");
+		customFoodBarTextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "customFoodBarTextSize", 15, "Font size of the duration text of food items in the custom food bar.");
+		text = "1 - Player HUD (Requires Logout)";
+		bool oldOrDefaultConfigValue = GetOldOrDefaultConfigValue(new ConfigDefinition("1 - Player HUD", "enablePlayerHudEditing"), defaultValue: true);
+		enablePlayerHudEditing = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "enablePlayerHudEditing", oldOrDefaultConfigValue, "Enable the ability to edit the player HUD by pressing a hotkey.");
+		bool oldOrDefaultConfigValue2 = GetOldOrDefaultConfigValue(new ConfigDefinition("1 - Player HUD", "useCustomHealthBar"), defaultValue: false);
+		oldOrDefaultConfigValue2 |= GetOldOrDefaultConfigValue(new ConfigDefinition("1 - Player HUD (Requires Logout)", "useCustomHealthBar"), defaultValue: false);
+		customHealthBar = ((BaseUnityPlugin)this).Config.Bind<CustomBarState>(text, "customHealthBar", (!oldOrDefaultConfigValue2) ? CustomBarState.off : CustomBarState.on0Degrees, "Resizable, rotatable HP bar. This bar will always be the same size and will not get longer when you eat. Will also disable the default food bar, so customFoodBar will be enabled automatically.");
+		customHealthBar.SettingChanged += delegate
+		{
+			CustomHealthBar_SettingChanged();
+		};
+		RemoveOldConfigValue<int>(new ConfigDefinition("1 - Player HUD", "healthBarRotation"));
+		RemoveOldConfigValue<int>(new ConfigDefinition(text, "customHealthBarRotation"));
+		bool oldOrDefaultConfigValue3 = GetOldOrDefaultConfigValue(new ConfigDefinition("1 - Player HUD", "useCustomStaminaBar"), defaultValue: false);
+		oldOrDefaultConfigValue3 |= GetOldOrDefaultConfigValue(new ConfigDefinition(text, "useCustomStaminaBar"), defaultValue: false);
+		customStaminaBar = ((BaseUnityPlugin)this).Config.Bind<CustomBarState>(text, "customStaminaBar", (!oldOrDefaultConfigValue3) ? CustomBarState.off : CustomBarState.on0Degrees, "Resizable, rotatable stamina bar. This bar will always be visible and will not get longer when you eat.");
+		customStaminaBar.SettingChanged += delegate
+		{
+			CustomStaminaBar_SettingChanged();
+		};
+		RemoveOldConfigValue<int>(new ConfigDefinition("1 - Player HUD", "staminaBarRotation"));
+		RemoveOldConfigValue<int>(new ConfigDefinition(text, "customStaminaBarRotation"));
+		bool oldOrDefaultConfigValue4 = GetOldOrDefaultConfigValue(new ConfigDefinition("1 - Player HUD", "useCustomFoodBar"), defaultValue: false);
+		oldOrDefaultConfigValue4 |= GetOldOrDefaultConfigValue(new ConfigDefinition(text, "useCustomFoodBar"), defaultValue: false);
+		customFoodBar = ((BaseUnityPlugin)this).Config.Bind<CustomBarState>(text, "customFoodBar", (!oldOrDefaultConfigValue4) ? CustomBarState.off : CustomBarState.on0Degrees, "Resizable, rotatable food bar. Requires customHealthBar.");
+		if (customHealthBar.Value != CustomBarState.off && customFoodBar.Value == CustomBarState.off)
+		{
+			customFoodBar.Value = CustomBarState.on0Degrees;
+		}
+		customFoodBar.SettingChanged += delegate
+		{
+			CustomFoodBar_SettingChanged();
+		};
+		RemoveOldConfigValue<int>(new ConfigDefinition("1 - Player HUD", "foodBarRotation"));
+		RemoveOldConfigValue<int>(new ConfigDefinition(text, "customFoodBarRotation"));
+		bool oldOrDefaultConfigValue5 = GetOldOrDefaultConfigValue(new ConfigDefinition("1 - Player HUD", "useCustomEitrBar"), defaultValue: false);
+		customEitrBar = ((BaseUnityPlugin)this).Config.Bind<CustomBarState>(text, "customEitrBar", (!oldOrDefaultConfigValue5) ? CustomBarState.off : CustomBarState.on0Degrees, "Resizable, rotatable eitr bar. If you don't know what this is yet, just keep it disabled. This bar will always be visible and will not get longer when you eat.");
+		customEitrBar.SettingChanged += delegate
+		{
+			CustomEitrBar_SettingChanged();
+		};
+		RemoveOldConfigValue<int>(new ConfigDefinition(text, "customSpoilerBarRotation"));
+		text = "2 - Character Inventory";
+		bool oldOrDefaultConfigValue6 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "showDurabilityColor"), defaultValue: true);
+		int oldOrDefaultConfigValue7 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "durabilityColorPalette"), 0);
+		durabilityBarColorPalette = ((BaseUnityPlugin)this).Config.Bind<DurabilityBarStyle>(text, "durabilityBarColorPalette", IntToDurabilityBarStyle(oldOrDefaultConfigValue6, oldOrDefaultConfigValue7), "Change durability bar colors. Options: 0 = Green, Yellow, Orange, Red, 1 = White, Light Yellow, Light Cyan, Blue.");
+		showItemStars = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showItemStars", true, "Show item quality as stars.");
+		showCustomCharInfo = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showCustomCharInfo", true, "Show Deaths, Builds, and Crafts stats on character selection screen. Also shows the Kills stat if something increases it (the base game doesn't).");
+		showCustomTooltips = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showCustomTooltips", true, "Show more info on inventory item tooltips. Automatically disabled this if using Epic Loot for compatibility.");
+		showCombinedItemStats = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showCombinedItemStats", true, "Show all item stats when mouse is hovered over armor amount.");
+		iconScaleSize = ((BaseUnityPlugin)this).Config.Bind<float>(text, "iconScaleSize", 1f, "Scale item icon by this factor. Ex. 0.75 makes them 75% of their original size.");
+		text = "3 - Character Skills";
+		customSkillUI = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "customSkillUI", false, "Toggle the use of the custom skills UI.");
+		skillUITextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "skillUITextSize", 14, "Select text size of the skills UI.");
+		text = "4 - Hover Text";
+		int oldOrDefaultConfigValue8 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "timeLeftStyleFermenter"), 2);
+		timeLeftHoverTextFermenter = ((BaseUnityPlugin)this).Config.Bind<TimeLeftStyle>(text, "timeLeftHoverTextFermenter", IntToTimeLeftStyle(oldOrDefaultConfigValue8), "Select duration display. Disabled = Default, PercentageDone = % Done, MinutesSecondsLeft = min:sec left.");
+		oldOrDefaultConfigValue8 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "timeLeftStylePlant"), 2);
+		timeLeftHoverTextPlant = ((BaseUnityPlugin)this).Config.Bind<TimeLeftStyle>(text, "timeLeftHoverTextPlant", IntToTimeLeftStyle(oldOrDefaultConfigValue8), "Select duration display. Disabled = Default, PercentageDone = % Done, MinutesSecondsLeft = min:sec left.");
+		oldOrDefaultConfigValue8 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "timeLeftStyleCookingStation"), 2);
+		timeLeftHoverTextCookingStation = ((BaseUnityPlugin)this).Config.Bind<TimeLeftStyle>(text, "timeLeftHoverTextCookingStation", IntToTimeLeftStyle(oldOrDefaultConfigValue8), "Select duration display. Disabled = Default, PercentageDone = % Done, MinutesSecondsLeft = min:sec left.");
+		timeLeftHoverTextBeeHive = ((BaseUnityPlugin)this).Config.Bind<TimeLeftStyle>(text, "timeLeftHoverTextBeeHive", TimeLeftStyle.MinutesSecondsLeft, "Select duration display. Disabled = Default, PercentageDone = % Done, MinutesSecondsLeft = min:sec left.");
+		int oldOrDefaultConfigValue9 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "chestHasRoomStyle"), 2);
+		chestHasRoomHoverText = ((BaseUnityPlugin)this).Config.Bind<ChestHasRoomStyle>(text, "chestHasRoomHoverText", IntToChestHasRoomStyle(oldOrDefaultConfigValue9), "Select how chest emptiness is displayed. Disabled = Default | Percentage = % | ItemsSlashMaxRoom= used / total slots. | AmountOfFreeSlots = count of free slots.");
+		text = "5 - Character XP";
+		showCharacterXP = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showCharacterXP", true, "Enable character XP. This combines all skill levels to show overall character progress.");
+		showXPNotifications = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showXPNotifications", true, "Show whenever you gain xp from actions.");
+		notificationTextSizeXP = ((BaseUnityPlugin)this).Config.Bind<int>(text, "notificationTextSizeXP", 14, "XP notification font size.");
+		extendedXPNotification = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "extendedXPNotification", false, "Extend notification with: (xp gained) [current/overall xp].");
+		skipRunningSkillNotifications = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "skipRunningSkillNotifications", true, "Whether to ignore xp gain notifications for the running skill.");
+		text = "5 - Character XP (Requires Logout)";
+		bool oldOrDefaultConfigValue10 = GetOldOrDefaultConfigValue(new ConfigDefinition("5 - Character XP", "showCharacterXpBar"), defaultValue: true);
+		showCharacterXpBar = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showCharacterXpBar", oldOrDefaultConfigValue10, "Show Character XP bar on the bottom of the screen. Character XP must be enabled.");
+		text = "6 - Enemy HUD";
+		customEnemyHud = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "customEnemyHud", true, "Enable custom enemy HUD changes. If this is set to false, all options in this section will be disabled.");
+		useCustomAlertedStatus = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "useCustomAlertedStatus", true, "Hide the vanilla alerted icons above the enemy health bar and instead change the color of the name based on the alerted status.");
+		showEnemyHPText = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showEnemyHPText", true, "Show the text with HP amount on enemy health bars.");
+		int oldOrDefaultConfigValue11 = GetOldOrDefaultConfigValue(new ConfigDefinition(text, "enemyLvlStyle"), 0);
+		enemyLevelStyle = ((BaseUnityPlugin)this).Config.Bind<EnemyLevelStyle>(text, "enemyLevelStyle", IntToEnemyLevelStyle(oldOrDefaultConfigValue11), "Choose how enemy level is shown.");
+		enemyNameTextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "enemyNameTextSize", 14, "Font size of the name on the enemy.");
+		enemyHPTextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "enemyHPTextSize", 10, "Font size of the HP text on the enemy health bar.");
+		showPlayerHPText = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showPlayerHPText", true, "Show the health numbers on other player's health bar in multiplayer.");
+		showLocalPlayerEnemyHud = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "showLocalPlayerEnemyHud", false, "Show the enemy HUD/ health Bar for your player.");
+		showLocalPlayerEnemyHud.SettingChanged += delegate
+		{
+			BetterEnemyHud.ShowLocalPlayerEnemyHudConfigChanged();
+		};
+		playerHPTextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "playerHPTextSize", 10, "The size of the font to display on other player's health bar in multiplayer.");
+		bossHPTextSize = ((BaseUnityPlugin)this).Config.Bind<int>(text, "bossHPTextSize", 14, "The size of the font to display on the boss's health bar.");
+		makeTamedHPGreen = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "makeTamedHPGreen", true, "Make the health bar for tamed creatures green instead of red.");
+		maxShowDistance = ((BaseUnityPlugin)this).Config.Bind<float>(text, "maxShowDistance", 1f, "How far you will see enemy HP Bar. This is a multiplier, 1 is game default, 2 is twice as far (valid range: 0 to 3).");
+		text = "7 - Map";
+		mapPinScaleSize = ((BaseUnityPlugin)this).Config.Bind<float>(text, "mapPinScaleSize", 1f, "Scale map pins by this factor. Ex. 1.5 makes them 150% of their original size.");
+		text = "8 - Debug";
+		isDebug = ((BaseUnityPlugin)this).Config.Bind<bool>(text, "isDebug", false, "Enable debug logging.");
+		text = "9 - xDataUI";
+		uiData = ((BaseUnityPlugin)this).Config.Bind<string>(text, "uiData", "none", "This is your customized UI info. Edit to none, if having issues or wanting to reset positions.");
+		if (isDebug.Value)
+		{
+			PrintOrphanedEntries();
+		}
+		Logger.LogInfo((object)"BetterUI (Forever Maintained Version) loaded");
+	}
+
+	private DurabilityBarStyle IntToDurabilityBarStyle(bool wasColorPaletteOn, int selectedColorPalette)
+	{
+		if (!wasColorPaletteOn)
+		{
+			return DurabilityBarStyle.Disabled;
+		}
+		if (selectedColorPalette != 0)
+		{
+			return DurabilityBarStyle.WhiteLightYellowLightCyanBlue;
+		}
+		return DurabilityBarStyle.GreenYellowOrangeRed;
+	}
+
+	private ChestHasRoomStyle IntToChestHasRoomStyle(int value)
+	{
+		if (value > 0 && value <= 3)
+		{
+			return (ChestHasRoomStyle)value;
+		}
+		return ChestHasRoomStyle.Disabled;
+	}
+
+	private TimeLeftStyle IntToTimeLeftStyle(int value)
+	{
+		return value switch
+		{
+			1 => TimeLeftStyle.PercentageDone, 
+			2 => TimeLeftStyle.MinutesSecondsLeft, 
+			_ => TimeLeftStyle.Disabled, 
+		};
+	}
+
+	private EnemyLevelStyle IntToEnemyLevelStyle(int value)
+	{
+		return value switch
+		{
+			1 => EnemyLevelStyle.PrefixLevelNumber, 
+			2 => EnemyLevelStyle.Both, 
+			_ => EnemyLevelStyle.DefaultStars, 
+		};
+	}
+
+	private void CustomFoodBar_SettingChanged()
+	{
+		CustomBars.FoodBar.UpdateRotation();
+	}
+
+	private void CustomStaminaBar_SettingChanged()
+	{
+		CustomBars.StaminaBar.UpdateRotation();
+	}
+
+	private void CustomHealthBar_SettingChanged()
+	{
+		CustomBars.HealthBar.UpdateRotation();
+	}
+
+	private void CustomEitrBar_SettingChanged()
+	{
+		CustomBars.EitrBar.UpdateRotation();
+	}
+
+	public void Start()
+	{
+		harmony.PatchAll(assembly);
+	}
+
+	public void RemoveOldConfigValue<T>(ConfigDefinition configDefinition)
+	{
+		GetOldOrDefaultConfigValue(configDefinition, default(T));
+	}
+
+	public T GetOldOrDefaultConfigValue<T>(ConfigDefinition configDefinition, T defaultValue)
+	{
+		T value = ((BaseUnityPlugin)this).Config.Bind<T>(configDefinition, defaultValue, (ConfigDescription)null).Value;
+		((BaseUnityPlugin)this).Config.Remove(configDefinition);
+		if (((BaseUnityPlugin)this).Config.SaveOnConfigSet)
+		{
+			((BaseUnityPlugin)this).Config.Save();
+		}
+		return value;
+	}
+
+	public bool TryGetOldConfigValue<T>(ConfigDefinition configDefinition, ref T oldValue, bool removeIfFound = true)
+	{
+		if (!TomlTypeConverter.CanConvert(typeof(T)))
+		{
+			throw new ArgumentException(string.Format("Type {0} is not supported by the config system. Supported types: {1}", typeof(T), string.Join(", ", (from x in TomlTypeConverter.GetSupportedTypes()
+				select x.Name).ToArray())));
+		}
+		try
+		{
+			object obj = AccessTools.FieldRefAccess<ConfigFile, object>("_ioLock").Invoke(((BaseUnityPlugin)this).Config);
+			Dictionary<ConfigDefinition, string> dictionary = (Dictionary<ConfigDefinition, string>)AccessTools.PropertyGetter(typeof(ConfigFile), "OrphanedEntries").Invoke(((BaseUnityPlugin)this).Config, new object[0]);
+			lock (obj)
+			{
+				if (dictionary.TryGetValue(configDefinition, out var value))
+				{
+					oldValue = (T)TomlTypeConverter.ConvertToValue(value, typeof(T));
+					if (removeIfFound)
+					{
+						dictionary.Remove(configDefinition);
+					}
+					return true;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			log.LogWarning((object)("Error getting orphaned entry: " + ex.StackTrace));
+		}
+		return false;
+	}
+
+	public void PrintOrphanedEntries()
+	{
+		try
+		{
+			object obj = AccessTools.FieldRefAccess<ConfigFile, object>("_ioLock").Invoke(((BaseUnityPlugin)this).Config);
+			Dictionary<ConfigDefinition, string> dictionary = (Dictionary<ConfigDefinition, string>)AccessTools.PropertyGetter(typeof(ConfigFile), "OrphanedEntries").Invoke(((BaseUnityPlugin)this).Config, new object[0]);
+			if (dictionary.Count == 0)
+			{
+				return;
+			}
+			lock (obj)
+			{
+				log.LogInfo((object)"printing orphaned config values");
+				foreach (KeyValuePair<ConfigDefinition, string> item in dictionary)
+				{
+					log.LogInfo((object)(item.Key.Section + "," + item.Key.Key + ": " + item.Value));
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			log.LogWarning((object)("Error logging orphaned entries: " + ex.StackTrace));
+		}
+	}
 }
