@@ -23,6 +23,8 @@ public static class BetterEnemyHud
 
 	private const string PlayerHpPrefix = "BU_playerHPText";
 
+	private const float EnemyStarsLift = 5f;
+
 	public static readonly float maxDrawDistance = 3f;
 
 	private static readonly ConditionalWeakTable<HudData, TextMeshProUGUI> _hpTextCache = new ConditionalWeakTable<HudData, TextMeshProUGUI>();
@@ -82,7 +84,7 @@ public static class BetterEnemyHud
 			return;
 		}
 		((TMP_Text)value).text = text;
-		((TMP_Text)value).rectTransform.anchoredPosition = new Vector2(healthRect.anchoredPosition.x, healthRect.anchoredPosition.y - (healthRect.sizeDelta.y * 0.5f + 7f));
+		((TMP_Text)value).rectTransform.anchoredPosition = new Vector2(healthRect.anchoredPosition.x, healthRect.anchoredPosition.y - (healthRect.sizeDelta.y * 0.5f - EnemyStarsLift));
 	}
 
 	[HarmonyPostfix]
