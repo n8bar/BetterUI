@@ -36,7 +36,10 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "Version must be x.y.z."
 }
 
-$manifestText = [regex]::Replace($manifestText, '("version_number"\s*:\s*")[^"]+(")', "`$1$Version`$2", 1)
+$manifestText = [regex]::Replace($manifestText, '("version_number"\s*:\s*")[^"]+(")', {
+    param($match)
+    "$($match.Groups[1].Value)$Version$($match.Groups[2].Value)"
+}, 1)
 Set-Content $manifestPath $manifestText
 
 $mainText = Get-Content $mainPath -Raw

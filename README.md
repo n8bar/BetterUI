@@ -3,7 +3,7 @@
 This branch rebuilds `BetterUI_ForeverMaintained` `2.5.9` from decompiled source and keeps the local enemy HUD changes that were previously done as binary patches:
 
 - enemy level display uses `m_level - 1`
-- non-zero enemy levels render as repeated `★` instead of `Lv.#`
+- `Both` mode shows non-zero enemy levels as yellow repeated `★` text below the health bar
 
 ## Status
 

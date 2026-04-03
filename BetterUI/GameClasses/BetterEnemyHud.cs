@@ -19,26 +19,70 @@ public static class BetterEnemyHud
 
 	private const string EnemyHpPrefix = "BU_enemyHpText";
 
+	private const string EnemyStarsPrefix = "BU_enemyStarsText";
+
 	private const string PlayerHpPrefix = "BU_playerHPText";
 
 	public static readonly float maxDrawDistance = 3f;
 
 	private static readonly ConditionalWeakTable<HudData, TextMeshProUGUI> _hpTextCache = new ConditionalWeakTable<HudData, TextMeshProUGUI>();
 
+	private static readonly ConditionalWeakTable<HudData, TextMeshProUGUI> _starTextCache = new ConditionalWeakTable<HudData, TextMeshProUGUI>();
+
+	private static int GetDisplayedEnemyLevel(Character character)
+	{
+		return Mathf.Max(character.m_level - 1, 0);
+	}
+
+	private static bool UseCustomEnemyStars()
+	{
+		return Main.enemyLevelStyle.Value == Main.EnemyLevelStyle.Both;
+	}
+
 	private static string FormatEnemyName(Character character)
 	{
 		string text = Localization.instance.Localize(character.GetHoverName());
-		if (Main.enemyLevelStyle.Value == Main.EnemyLevelStyle.DefaultStars)
+		if (Main.enemyLevelStyle.Value != Main.EnemyLevelStyle.PrefixLevelNumber)
 		{
 			return text;
 		}
-		int num = Mathf.Max(character.m_level - 1, 0);
+		int num = GetDisplayedEnemyLevel(character);
 		if (num <= 0)
 		{
 			return text;
 		}
-		string text2 = Helpers.Repeat("\u2605", num);
-		return $"<size={Main.enemyNameTextSize.Value}><color=#ffffffff>{text2} </color></size> {text}";
+		return $"<size={Main.enemyNameTextSize.Value}><color=#ffffffff>Lv.{num} </color></size>{text}";
+	}
+
+	private static string FormatEnemyStars(Character character)
+	{
+		if (!UseCustomEnemyStars())
+		{
+			return string.Empty;
+		}
+		int displayedEnemyLevel = GetDisplayedEnemyLevel(character);
+		if (displayedEnemyLevel <= 0)
+		{
+			return string.Empty;
+		}
+		return $"<size={Main.enemyNameTextSize.Value}><color=#ffff00>{Helpers.Repeat("\u2605", displayedEnemyLevel)}</color></size>";
+	}
+
+	private static void UpdateEnemyStars(HudData hudData, RectTransform healthRect)
+	{
+		if (!_starTextCache.TryGetValue(hudData, out TextMeshProUGUI value))
+		{
+			return;
+		}
+		string text = FormatEnemyStars(hudData.m_character);
+		bool active = !string.IsNullOrEmpty(text);
+		((Component)value).gameObject.SetActive(active);
+		if (!active)
+		{
+			return;
+		}
+		((TMP_Text)value).text = text;
+		((TMP_Text)value).rectTransform.anchoredPosition = new Vector2(healthRect.anchoredPosition.x, healthRect.anchoredPosition.y - (healthRect.sizeDelta.y * 0.5f + 7f));
 	}
 
 	[HarmonyPostfix]
@@ -148,7 +192,16 @@ public static class BetterEnemyHud
 		}
 		value.m_healthFast.m_bar.sizeDelta = new Vector2(value.m_healthFast.m_width, val.sizeDelta.y);
 		value.m_healthSlow.m_bar.sizeDelta = new Vector2(value.m_healthSlow.m_width, val.sizeDelta.y);
-		if (Main.enemyLevelStyle.Value == Main.EnemyLevelStyle.PrefixLevelNumber)
+		if (UseCustomEnemyStars())
+		{
+			TextMeshProUGUI val5 = Object.Instantiate<TextMeshProUGUI>(value.m_name, ((TMP_Text)value.m_name).transform.parent);
+			((Object)val5).name = EnemyStarsPrefix;
+			((Graphic)val5).color = Color.white;
+			Object.Destroy((Object)(object)((Component)val5).GetComponent<Outline>());
+			_starTextCache.Add(value, val5);
+			UpdateEnemyStars(value, val);
+		}
+		if (Main.enemyLevelStyle.Value != Main.EnemyLevelStyle.DefaultStars)
 		{
 			((Component)value.m_level2).gameObject.SetActive(false);
 			((Component)value.m_level3).gameObject.SetActive(false);
@@ -208,7 +261,13 @@ public static class BetterEnemyHud
 				((TMP_Text)value4).text = $"<size={Main.enemyHPTextSize.Value}>{value.m_character.GetHealth():0}/{value.m_character.GetMaxHealth():0}</size>";
 			}
 			((TMP_Text)value.m_name).text = FormatEnemyName(value.m_character);
-			if (Main.enemyLevelStyle.Value == Main.EnemyLevelStyle.PrefixLevelNumber)
+			Transform obj = value.m_gui.transform.Find("Health");
+			RectTransform val5 = (RectTransform)(object)((obj is RectTransform) ? obj : null);
+			if ((Object)(object)val5 != (Object)null)
+			{
+				UpdateEnemyStars(value, val5);
+			}
+			if (Main.enemyLevelStyle.Value != Main.EnemyLevelStyle.DefaultStars)
 			{
 				((Component)value.m_level2).gameObject.SetActive(false);
 				((Component)value.m_level3).gameObject.SetActive(false);
