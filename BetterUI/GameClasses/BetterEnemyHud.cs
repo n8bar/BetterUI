@@ -23,7 +23,7 @@ public static class BetterEnemyHud
 
 	private const string PlayerHpPrefix = "BU_playerHPText";
 
-	private const float EnemyStarsLift = 5f;
+	private const float EnemyStarsLift = 45f;
 
 	public static readonly float maxDrawDistance = 3f;
 
